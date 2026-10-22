@@ -1,0 +1,12 @@
+.gradle/
+build/
+# ./gradlew run
+run/
+.idea/
+*.iml
+.vscode/
+.DS_Store
+# Written by the bot when you run it here
+/config.properties
+/.machine-id
+/license.lic

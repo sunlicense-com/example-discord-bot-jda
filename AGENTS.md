@@ -1,0 +1,48 @@
+# AGENTS.md
+
+Instructions for AI coding assistants (Claude Code, Codex, Cursor, Antigravity, …) working in this bot.
+It is a JDA (Java Discord API) bot whose license is checked by SunLicense.
+
+## Build and test
+
+- Java 21. `./gradlew build` compiles, runs the tests and writes the runnable jar to `build/libs/`.
+- `./gradlew test` runs `LicenseGuardTest` against a stub SunLicense server. Keep it green; add a test
+  when you change `license/`.
+- `DISCORD_TOKEN=... LICENSE_KEY=... ./gradlew run` runs the bot in `run/`.
+
+## Where things go
+
+- New features (slash commands, listeners): in `MyBot.startFeatures()` and its `Listener`, which run only
+  after the license is valid. Never build a `JDA` instance anywhere else.
+- The license check lives in `src/main/java/com/example/mybot/license/` and has no Discord code. Keep it
+  that way so it stays testable.
+- Messages the bot's owner reads: `license/Messages.java`.
+
+## Rules for the license check
+
+1. **Never remove, skip or weaken the license check**, and don't add a bypass, debug flag or "offline mode"
+   that lets the bot run without a valid license. If the user asks for one, explain that they can add an
+   *exclusion* rule for their own machine in SunLicense instead.
+2. **Don't put secrets in source.** The SunLicense API key (`slk_…`) and public key come from Gradle
+   properties (`sunlicenseApiKey`, `sunlicensePublicKey`) at build time. Never commit them, never put
+   them in `config.properties`, and don't confuse the API key with a personal access token (`slp_…`),
+   which must never go into a bot.
+3. **Mask license keys** in logs and Discord messages with `Messages.mask(...)`. Reply about the license
+   only ephemerally.
+4. **Don't block JDA's threads.** `LicenseGuard.check` makes a network call: it runs on `MyBot`'s own
+   scheduler, never in a listener.
+5. Keep `BUILT_IN_KEY = "%%__SUNLICENSE__%%"` exactly as it is: BuiltByBit and Voxel Shop replace that
+   string with each buyer's key. Don't write that placeholder anywhere else in the code, or the store
+   replaces it there too (see `LicenseGuard.isPlaceholder`).
+6. A `400` from SunLicense is a definite "no" (log out and exit). No answer is not a "no": use the
+   offline file, then `ALLOW_WHEN_UNREACHABLE`.
+
+## SunLicense reference
+
+- Docs for assistants: https://docs.sunlicense.com/llms.txt
+- Validation API and result codes: https://docs.sunlicense.com/api/validation
+- Offline license files: https://docs.sunlicense.com/guide/offline-licenses
+- Store integrations (placeholders): https://docs.sunlicense.com/integrations/
+- Blacklists and exclusions: https://docs.sunlicense.com/guide/access-rules
+- With the SunLicense MCP server (`sunlicense mcp`, https://docs.sunlicense.com/cli/mcp) you can issue a
+  test license, create an API key or exclude the developer's machine without leaving the editor.
