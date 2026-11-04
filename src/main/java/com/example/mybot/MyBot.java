@@ -1,3 +1,7 @@
+/*
+ * MyBot by You. Licensed software: each machine needs its own license. Terms: https://example.com/terms
+ * Licensing by SunLicense (https://sunlicense.com).
+ */
 package com.example.mybot;
 
 import java.io.IOException;
@@ -6,6 +10,8 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.Executors;
@@ -19,17 +25,22 @@ import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.session.ReadyEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import net.dv8tion.jda.api.interactions.commands.build.CommandData;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.exceptions.InvalidTokenException;
 
 import com.example.mybot.license.LicenseGuard;
 import com.example.mybot.license.LicenseStatus;
 import com.example.mybot.license.Messages;
+import com.example.mybot.license.SealedCore;
+import com.example.mybot.license.SunLicenseAnalytics;
+import com.example.mybot.license.SunLicenseProtection;
 
 /**
  * A Discord bot (JDA) protected by SunLicense. The license is checked at start-up and every
  * {@code recheck-hours}; the bot logs in to Discord only once it is valid ({@link #startFeatures()}) and
- * logs out and exits if SunLicense later says no ({@link #stopFeatures()}).
+ * logs out and exits if SunLicense later says no ({@link #stopFeatures()}). Its features ({@code core/CoreFeatures})
+ * are sealed in release builds, so only a valid license can run them.
  */
 public final class MyBot {
     /**
@@ -50,10 +61,18 @@ public final class MyBot {
 
     private static final Logger LOG = Logger.getLogger("MyBot");
 
+    /** The core's entry class (sealed in release builds). */
+    private static final String CORE = "com.example.mybot.core.CoreFeatures";
+
+    /** The ownership notice logged at start-up: who makes the bot and where its terms are. */
+    private static final String AUTHOR = "You";
+    private static final String TERMS = "https://example.com/terms";
+
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private final Path home = Path.of("").toAbsolutePath();
     private final Properties config;
     private final LicenseGuard guard;
+    private final SunLicenseAnalytics analytics;
     private final String licenseKey;
     private final String machineId;
     private ScheduledFuture<?> retry;
@@ -66,10 +85,18 @@ public final class MyBot {
 
     private MyBot() throws IOException {
         config = loadConfig();
-        guard = new LicenseGuard(LicenseGuard.Settings.load(MyBot.class.getResourceAsStream("/sunlicense.properties")),
-                home.resolve("license.lic"));
+        LicenseGuard.Settings settings = LicenseGuard.Settings.load(MyBot.class.getResourceAsStream("/sunlicense.properties"));
+        guard = new LicenseGuard(settings, home.resolve("license.lic"),
+                SunLicenseProtection.builder().product("MyBot", AUTHOR).terms(TERMS));
         licenseKey = LicenseGuard.pickKey(BUILT_IN_KEY, setting("LICENSE_KEY", "license-key"));
         machineId = machineId();
+        guard.protection().license(licenseKey, machineId);
+        LOG.info(guard.protection().notice());
+        SealedCore.checkEarly(guard.protection(), MyBot.class.getClassLoader());   // so the first check reports a modified jar
+        // Anonymous usage statistics for your Analytics tab, every 30 minutes on a background thread (config: analytics).
+        analytics = SunLicenseAnalytics.builder().baseUrl(settings.url()).apiKey(settings.apiKey())
+                .licenseKey(licenseKey).fingerprint(machineId).productVersion(MyBot.class.getPackage().getImplementationVersion())
+                .enabled(!"false".equalsIgnoreCase(config.getProperty("analytics", "true").trim())).start();
     }
 
     private void start() {
@@ -115,11 +142,27 @@ public final class MyBot {
         }
     }
 
-    /** Your bot's features: commands and listeners go here, so nothing runs without a license. */
+    /**
+     * Logs in with the core's commands and listeners (core/CoreFeatures). In a release build the core needs the unlock
+     * from a valid license check; without it the bot stays logged out and tries again with the next check.
+     */
     private void startFeatures() {
+        Features features;
+        try {
+            features = SealedCore.load(guard.protection(), MyBot.class.getClassLoader(), CORE, Features.class);
+        } catch (SunLicenseProtection.Locked e) {
+            LOG.severe("The bot can't start yet: " + e.getMessage()
+                    + " It starts as soon as SunLicense confirms the license (the confirmation is kept for 7 days).");
+            return;
+        } catch (Exception e) {
+            LOG.severe("The bot's core failed to load: " + e);
+            System.exit(1);
+            return;
+        }
         try {
             jda = JDABuilder.createLight(setting("DISCORD_TOKEN", "discord-token"))
-                    .addEventListeners(new Listener())
+                    .addEventListeners(new Listener(features.commands()))
+                    .addEventListeners(features.listeners(this).toArray())
                     .build();
         } catch (InvalidTokenException e) {
             LOG.severe("Discord refused the bot token: " + e.getMessage());
@@ -128,6 +171,7 @@ public final class MyBot {
     }
 
     private void stopFeatures() {
+        analytics.close();
         if (jda != null) {
             jda.shutdown();
             jda = null;
@@ -135,11 +179,16 @@ public final class MyBot {
     }
 
     private final class Listener extends ListenerAdapter {
+        private final List<CommandData> commands = new ArrayList<>();
+
+        Listener(List<CommandData> coreCommands) {
+            commands.add(Commands.slash("license", "Shows this bot's license status"));
+            commands.addAll(coreCommands);
+        }
+
         @Override
         public void onReady(ReadyEvent event) {
-            event.getJDA().updateCommands()
-                    .addCommands(Commands.slash("license", "Shows this bot's license status"))
-                    .queue();
+            event.getJDA().updateCommands().addCommands(commands).queue();
             LOG.info("Logged in as " + event.getJDA().getSelfUser().getName() + ".");
         }
 
