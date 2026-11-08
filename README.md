@@ -1,5 +1,11 @@
 # Discord bot (Java, JDA) with SunLicense
 
+<!-- sunlicense:distribution -->
+[![Build](https://github.com/sunlicense-com/example-discord-bot-jda/actions/workflows/build.yml/badge.svg)](https://github.com/sunlicense-com/example-discord-bot-jda/actions/workflows/build.yml)
+[![Licence: MIT-0](https://img.shields.io/badge/licence-MIT--0-blue)](LICENSE)
+[![Docs](https://img.shields.io/badge/docs-docs.sunlicense.com-f97316)](https://docs.sunlicense.com/guide/templates)
+[![SunLicense: free plan](https://img.shields.io/badge/SunLicense-free%20plan-f97316)](https://sunlicense.com/start?ref=gh-discord-jda)
+
 A working, copyable [JDA](https://github.com/discord-jda/JDA) bot with [SunLicense](https://sunlicense.com)
 built in: everyone who runs your bot needs a valid license key, leaked keys can be revoked or blocked,
 and your customers' bots keep running if SunLicense is ever unreachable.
@@ -10,6 +16,19 @@ and your customers' bots keep running if SunLicense is ever unreachable.
 - Re-checked every few hours, so a revoke reaches running bots (the bot logs out)
 - **Offline fallback** with a signed license file (Ed25519, verified without network)
 - Tests against a stub server, CI on GitHub Actions, and [AGENTS.md](AGENTS.md) for AI coding assistants
+
+<p align="center"><img src=".github/demo.gif" width="720" alt="The bot logs in with a valid license; after the key is revoked, it stops at the next start"></p>
+
+## Set up in one prompt
+
+1. Click **Use this template** (or `gh repo create my-bot --template sunlicense-com/example-discord-bot-jda --private --clone`).
+2. Open the folder in Claude Code, Cursor, Codex or Copilot and paste the prompt from
+   **[sunlicense.com/prompt](https://sunlicense.com/prompt?ref=gh-discord-jda)**.
+
+The agent installs the SunLicense CLI, creates a free guest account (no sign-up form; keep it by adding your email
+later), a product, a policy and an API key, puts them where this template reads them ([AGENTS.md](AGENTS.md)) and
+proves a license check comes back valid. Rather do it by hand? Make a
+[free account](https://sunlicense.com/start?ref=gh-discord-jda) and follow the steps below.
 
 ## 1. Set up SunLicense
 
@@ -113,6 +132,15 @@ src/test/java/.../LicenseGuardTest.java   every result against a stub SunLicense
 src/test/java/.../SealedCoreTest.java     the sealed core opens only with a valid unlock
 .github/workflows/build.yml               CI
 ```
+
+## Links
+
+- Docs: [all templates](https://docs.sunlicense.com/guide/templates) · [SDKs](https://docs.sunlicense.com/guide/sdks) ·
+  [store integrations](https://docs.sunlicense.com/integrations/)
+- [SunLicense](https://sunlicense.com/?ref=gh-discord-jda): license keys for software you sell, with store integrations,
+  a Discord bot for your buyers and leak alerts. Free for 3 products and 100 licenses:
+  [create an account](https://sunlicense.com/start?ref=gh-discord-jda).
+- Questions or a bug in this template: [open an issue](https://github.com/sunlicense-com/example-discord-bot-jda/issues).
 
 ## Licence
 
